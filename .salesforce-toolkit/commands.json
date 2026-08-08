@@ -1,0 +1,16 @@
+{
+    "commands": [
+        {
+            "id": "assetize",
+            "label": "Assetize Script"
+        },
+        {
+            "id": "dp10",
+            "label": "DP10 Script"
+        },
+        {
+            "id": "createdependencywithmasterorder",
+            "label": "Create Dependency with Master Order Script"
+        }
+    ]
+}
