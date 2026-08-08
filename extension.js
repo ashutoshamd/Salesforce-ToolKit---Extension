@@ -42,11 +42,29 @@ function getWebviewContent() {
 
             <p>Welcome to Salesforce Toolkit</p>
 
-            <button>
-                Execute
-            </button>
+            <label> <input type="radio" name="command" value="assetize" > Assetize Script </label>
+           <label> <input type="radio" name="command" value="dp10" > Dp10 Script </label>
+
+            <button id="executeButton"> Execute </button>
 
         </body>
+
+        <script>
+
+            const vscode = acquireVsCodeApi(); // This is a VS Code function provided to the webview. It gives your webview a communication channel back to the extension.
+
+            document
+                .getElementById('executeButton') // Find the HTML element whose ID is executeButton
+                .addEventListener('click', function () {   // When someone clicks this element, run this function.
+
+            const selected = document.querySelector(  // Find the checked radio button whose name is command
+                    'input[name="command"]:checked'
+                );
+
+            console.log('Selected Value :: ',selected.value);
+
+    });
+        </script>
 
         </html>
     `;
