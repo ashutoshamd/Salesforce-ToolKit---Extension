@@ -1,11 +1,15 @@
 const vscode = require('vscode'); // Give my JavaScript access to VS Code. Without this:  vscode.window wouldn't exist. require('vscode') -> VS Code APIs
 
+// JavaScript + Node.js = JavaScript that can work with your computer
+const fs = require('fs'); // File System : It allows JavaScript to read/write files. Ex : fs.readFileSync(...) - means "Read this file." 
+const path = require('path'); // helps us construct file paths safely. Ex: path.join(...) - means C:\something\something
+
 function activate(context) {  // I'm ready. Tell me what you want me to do. Extension loaded -> activate() --> register functionality
 
     const command = vscode.commands.registerCommand( // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
         'salesforce-toolkit.open',
         function () {
-
+            const commands = loadCommands(context);
             const panel = vscode.window.createWebviewPanel(  // Create a webpage-like panel inside VS Code.
                 'salesforceToolkit',  // 'salesforceToolkit', is the internal ID
                 'Salesforce Toolkit',  // is the title shown on the tab.
@@ -15,7 +19,7 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
                 }  // Allow JavaScript inside our webview. VS Code webviews have scripting disabled by default, so we explicitly enable it because our UI will eventually need JavaScript to respond to radio buttons and the Execute button.
             );
 
-            panel.webview.html = getWebviewContent(); // Here's the HTML that I want you to display.
+            panel.webview.html = getWebviewContent(commands); // Here's the HTML that I want you to display.
             panel.webview.onDidReceiveMessage(function (message) { // created the complete communication path: DP10 Radio + Execute) ➔ Webview JS (postMessage()) ➔ VS Code Host (onDidReceiveMessage()) ➔ extension.js (Executes code)
                 if (message.type === 'execute') {  // Only process messages whose purpose is execute.
                     console.log('Selected command:', message.commandId
@@ -26,6 +30,24 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
     );
 
     context.subscriptions.push(command);
+}
+
+function loadCommands(context) {
+
+    const configPath = path.join(
+        context.extensionPath,  // Where is my extension installed? - During development, it points to your extension project. Later, when you package it: and someone installs it, it points to the installed extension location.
+        '.salesforce-toolkit',
+        'commands.json'
+    );
+
+    const fileContent = fs.readFileSync(  // Read the file and give me its contents as text. JavaScript initially receives it as text.
+        configPath,
+        'utf8'
+    );
+
+    const config = JSON.parse(fileContent);
+
+    return config.commands; // "Give me only the commands array."
 }
 
 function getWebviewContent() {
@@ -47,14 +69,23 @@ function getWebviewContent() {
 
             <p>Welcome to Salesforce Toolkit</p>
 
-            <label> <input type="radio" name="command" value="assetize" > Assetize Script </label>
-           <label> <input type="radio" name="command" value="dp10" > Dp10 Script </label>
+            <div id="commandList"></div>
 
             <button id="executeButton"> Execute </button>
 
         </body>
 
         <script>
+            const commands = ${JSON.stringify(commands)};
+            const commandList = document.getElementById('commandList');
+            // ${} is a placeholder used inside template literals (strings wrapped in backticks '`'). It lets you insert variables, math, or logic directly into a string without using the + sign.
+            commands.forEach(function(command, index) {
+                    const label = document.createElement('label');
+                    label.innerHTML = ` <input type="radio" name="command" value="${command.id}" ${index === 0 ? 'checked' : ''} > ${command.label} <br> 
+                `;
+
+                    commandList.appendChild(label);
+            });
 
             const vscode = acquireVsCodeApi(); // This is a VS Code function provided to the webview. It gives your webview a communication channel back to the extension.
 
@@ -73,7 +104,7 @@ function getWebviewContent() {
             });
         </script>
 
-        </html>
+        </html>`
      ;
 }
 
