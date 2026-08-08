@@ -16,7 +16,12 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
             );
 
             panel.webview.html = getWebviewContent(); // Here's the HTML that I want you to display.
-
+            panel.webview.onDidReceiveMessage(function (message) { // created the complete communication path: DP10 Radio + Execute) ➔ Webview JS (postMessage()) ➔ VS Code Host (onDidReceiveMessage()) ➔ extension.js (Executes code)
+                if (message.type === 'execute') {  // Only process messages whose purpose is execute.
+                    console.log('Selected command:', message.commandId
+                 );
+               }
+            });
         }
     );
 
@@ -61,13 +66,15 @@ function getWebviewContent() {
                     'input[name="command"]:checked'
                 );
 
-            console.log('Selected Value :: ',selected.value);
-
-    });
+                vscode.postMessage({ // We're sending an object across the webview boundary. like LWC -> event -> apex , Webview -> postMessage -> Extension
+                    type: 'execute',
+                    commandId: selected.value
+                });
+            });
         </script>
 
         </html>
-    `;
+     ;
 }
 
 function deactivate() {}
