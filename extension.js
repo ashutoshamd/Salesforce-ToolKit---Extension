@@ -8,6 +8,14 @@ const terminals = new Map();
 
 function activate(context) {  // I'm ready. Tell me what you want me to do. Extension loaded -> activate() --> register functionality
 
+	const endListener =
+    vscode.window.onDidEndTerminalShellExecution(function (event) {  //"VS Code, tell me whenever a shell command finishes inside an integrated terminal."
+        console.log('A terminal command has finished.');
+        console.log('Exit code:',event.exitCode);
+	  });
+
+	context.subscriptions.push(endListener);
+	
     const command = vscode.commands.registerCommand( // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
         'salesforce-toolkit.open',
         function () {
@@ -44,6 +52,11 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
                     );
 
                     console.log('Script selected:',scriptPath);
+
+					if (terminals.has(selectedCommand.id)) {
+						 vscode.window.showErrorMessage(`${selectedCommand.label} is already running.`);
+ 						 return;
+					}
 
                     const terminal = vscode.window.createTerminal({  // Create a new integrated terminal.
                         name: `Salesforce Toolkit - ${selectedCommand.label}`,
