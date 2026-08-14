@@ -3,15 +3,27 @@ const vscode = require('vscode'); // Give my JavaScript access to VS Code. Witho
 // JavaScript + Node.js = JavaScript that can work with your computer
 const fs = require('fs'); // File System : It allows JavaScript to read/write files. Ex : fs.readFileSync(...) - means "Read this file."  (Read a file , Write a file ,Create a folder ,Check whether a file exists)
 const path = require('path'); // helps us construct file paths safely. Ex: path.join(...) - means C:\something\something
-const terminals = new Map();
+const runningOperations = new Map();
 // const { spawn } = require('child_process');  // Pass Data from UI -> JS -> Power shell. Node.js provides an API called: child_process. It allows our JavaScript program to start another program.
 
 function activate(context) {  // I'm ready. Tell me what you want me to do. Extension loaded -> activate() --> register functionality
 
 	const endListener =
     vscode.window.onDidEndTerminalShellExecution(function (event) {  //"VS Code, tell me whenever a shell command finishes inside an integrated terminal."
-        console.log('A terminal command has finished.');
-        console.log('Exit code:',event.exitCode);
+        const commandLine = event.execution.commandLine.value;
+
+        console.log('Completed command:',commandLine );
+
+        const completedCommand = vscode.commands.find( function (command) {
+        const scriptName = path.basename(command.script);
+        return commandLine.includes(scriptName);
+            }
+        );
+
+        if (completedCommand) {
+             runningOperations.delete(completedCommand.id);
+            console.log(`${completedCommand.label} is available again.`);
+        }
 	  });
 
 	context.subscriptions.push(endListener);
@@ -53,7 +65,7 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
 
                     console.log('Script selected:',scriptPath);
 
-					if (terminals.has(selectedCommand.id)) {
+					if (runningOperations.has(selectedCommand.id)) {
 						 vscode.window.showErrorMessage(`${selectedCommand.label} is already running.`);
  						 return;
 					}
@@ -63,8 +75,10 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
                         cwd: context.extensionPath     // Start the terminal in our extension's root directory. ex scripts/dp10.ps1
                     });
 
-                    terminals.set(selectedCommand.id,terminal);  // map to recognize which is running 
+                    runningOperations.set(selectedCommand.id,terminal);  // map to recognize which is running 
                     terminal.show();   // terminal visible to user
+
+					
                     terminal.sendText(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`);  //powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\...\scripts\dp10.ps1"
                }
             });
