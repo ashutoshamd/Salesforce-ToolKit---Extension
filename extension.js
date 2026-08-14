@@ -11,7 +11,7 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
     const command = vscode.commands.registerCommand( // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
         'salesforce-toolkit.open',
         function () {
-            const commands = loadCommands(context);
+			const commands = loadCommands(context);
             const panel = vscode.window.createWebviewPanel(  // Create a webpage-like panel inside VS Code.
                 'salesforceToolkit',  // 'salesforceToolkit', is the internal ID
                 'Salesforce Toolkit',  // is the title shown on the tab.
@@ -51,11 +51,9 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
                     });
 
                     terminals.set(selectedCommand.id,terminal);  // map to recognize which is running 
-
                     terminal.show();   // terminal visible to user
-
                     terminal.sendText(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`);  //powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\...\scripts\dp10.ps1"
-                }
+               }
             });
         }
     );
@@ -81,64 +79,7 @@ function loadCommands(context) {
     return config.commands; // "Give me only the commands array."
 }
 
-function runPowerShell(scriptPath) {
-
-    return new Promise(function (resolve, reject) {  // Think of a Promise as: "This operation will finish later."
-
-        const powershell = spawn(
-            'powershell.exe',
-            [
-                '-NoProfile',
-                '-ExecutionPolicy',
-                'Bypass',
-                '-File',
-                scriptPath
-            ]
-        );   // Concept : powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dp10.ps1. -File means: "The thing I'm giving you is a PowerShell script file.
-
-        powershell.stdout.on('data', function (data) {
-
-            console.log(
-                data.toString()
-            );
-
-        });
-
-        powershell.stderr.on('data', function (data) {
-
-            console.error(
-                data.toString()
-            );
-
-        });
-
-        powershell.on('close', function (code) {
-
-            console.log(
-                'PowerShell exited with code:',
-                code
-            );
-
-            if (code === 0) {
-
-                resolve();
-
-            } else {
-
-                reject(
-                    new Error(
-                        `PowerShell failed with exit code ${code}`
-                    )
-                );
-
-            }
-
-        });
-
-    });
-}
-
-function getWebviewContent() {
+function getWebviewContent(commands) {
 
     return `
         <!DOCTYPE html>
@@ -146,9 +87,7 @@ function getWebviewContent() {
         <html>
 
         <head>
-
             <title>Salesforce Toolkit</title>
-
         </head>
 
         <body>
@@ -156,44 +95,50 @@ function getWebviewContent() {
             <h1>Salesforce Toolkit</h1>
 
             <p>Welcome to Salesforce Toolkit</p>
+			<br>
 
-            <div id="commandList"></div>
-
-            <button id="executeButton"> Execute </button>
+			<p> Please select any one from the below options to execute the command </p>
+			<div id="commandList">
+			</div>
+			<br><br>
+ 			
+			<button id="executeButton"> Execute </button>
 
         </body>
 
         <script>
-            const commands = ${JSON.stringify(commands)};
-            const commandList = document.getElementById('commandList');
-            // ${} is a placeholder used inside template literals (strings wrapped in backticks '`'). It lets you insert variables, math, or logic directly into a string without using the + sign.
-    commands.forEach(function (command, index) {
-        const label = document.createElement('label');
-        label.innerHTML = ` <input type="radio" name="command" value="${command.id}" ${index === 0 ? 'checked' : ''} > ${command.label} <br> 
-                `;
+            const vscode = acquireVsCodeApi(); // This is a VS Code function provided to the webview. It gives your webview a communication channel back to the extension.
 
-        commandList.appendChild(label);
-    });
+			const commands = ${JSON.stringify(commands)};
+			console.log('Commands in webview:', commands);
+			const commandList = document.getElementById('commandList');
+            
+            commands.forEach(function(command, index) {
+                const label = document.createElement('label');
+                                
+                // Using standard single quotes prevents backend template engine syntax conflicts
+				label.innerHTML = '<input type="radio" name="command" value="' + command.id + '"> ' + command.label + '<br>';
+                commandList.appendChild(label);
+            });
 
-    const vscode = acquireVsCodeApi(); // This is a VS Code function provided to the webview. It gives your webview a communication channel back to the extension.
-
-    document
-        .getElementById('executeButton') // Find the HTML element whose ID is executeButton
-        .addEventListener('click', function () {   // When someone clicks this element, run this function.
+            document
+                .getElementById('executeButton') // Find the HTML element whose ID is executeButton
+                .addEventListener('click', function () {   // When someone clicks this element, run this function.
 
             const selected = document.querySelector(  // Find the checked radio button whose name is command
-                'input[name="command"]:checked'
-            );
+                    'input[name="command"]:checked'
+                );
 
-            vscode.postMessage({ // We're sending an object across the webview boundary. like LWC -> event -> apex , Webview -> postMessage -> Extension
-                type: 'execute',
-                commandId: selected.value
+                vscode.postMessage({ // We're sending an object across the webview boundary. like LWC -> event -> apex , Webview -> postMessage -> Extension
+                    type: 'execute',
+                    commandId: selected.value
+                });
             });
-        });
-        </script >
-
-        </html > `
-     ;
+       
+		</script>
+        </body>
+        </html>
+    `;
 }
 
 function deactivate() {}
