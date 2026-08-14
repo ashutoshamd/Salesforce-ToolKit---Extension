@@ -27,6 +27,24 @@ function activate(context) {  // I'm ready. Tell me what you want me to do. Exte
 	  });
 
 	context.subscriptions.push(endListener);
+
+	const closeListener = vscode.window.onDidCloseTerminal(function (closedTerminal) {
+
+        for (const [commandId, terminal] of runningOperations.entries()) {
+
+            if (terminal === closedTerminal) {
+
+                runningOperations.delete(commandId);
+
+                console.log(
+                    `${commandId} terminal was closed. Operation released.`
+                );
+              	  break;
+        	    }
+     	   }
+    	});
+
+	context.subscriptions.push(closeListener);
 	
     const command = vscode.commands.registerCommand( // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
         'salesforce-toolkit.open',
