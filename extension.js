@@ -1,122 +1,127 @@
-const vscode = require('vscode'); // Give my JavaScript access to VS Code. Without this:  vscode.window wouldn't exist. require('vscode') -> VS Code APIs
+const vscode = require("vscode"); // Give my JavaScript access to VS Code. Without this:  vscode.window wouldn't exist. require('vscode') -> VS Code APIs
 
 // JavaScript + Node.js = JavaScript that can work with your computer
-const fs = require('fs'); // File System : It allows JavaScript to read/write files. Ex : fs.readFileSync(...) - means "Read this file."  (Read a file , Write a file ,Create a folder ,Check whether a file exists)
-const path = require('path'); // helps us construct file paths safely. Ex: path.join(...) - means C:\something\something
+const fs = require("fs"); // File System : It allows JavaScript to read/write files. Ex : fs.readFileSync(...) - means "Read this file."  (Read a file , Write a file ,Create a folder ,Check whether a file exists)
+const path = require("path"); // helps us construct file paths safely. Ex: path.join(...) - means C:\something\something
 const runningOperations = new Map();
 // const { spawn } = require('child_process');  // Pass Data from UI -> JS -> Power shell. Node.js provides an API called: child_process. It allows our JavaScript program to start another program.
 
-function activate(context) {  // I'm ready. Tell me what you want me to do. Extension loaded -> activate() --> register functionality
+function activate(context) {
+    // I'm ready. Tell me what you want me to do. Extension loaded -> activate() --> register functionality
 
-	const endListener =
-    vscode.window.onDidEndTerminalShellExecution(function (event) {  //"VS Code, tell me whenever a shell command finishes inside an integrated terminal."
-        const commandLine = event.execution.commandLine.value;
+    const endListener = vscode.window.onDidEndTerminalShellExecution(
+        function (event) {
+            //"VS Code, tell me whenever a shell command finishes inside an integrated terminal."
+            const commandLine = event.execution.commandLine.value;
 
-        console.log('Completed command:',commandLine );
+            console.log("Completed command:", commandLine);
 
-        const completedCommand = vscode.commands.find( function (command) {
-        const scriptName = path.basename(command.script);
-        return commandLine.includes(scriptName);
+            const completedCommand = vscode.commands.find(function (command) {
+                const scriptName = path.basename(command.script);
+                return commandLine.includes(scriptName);
+            });
+
+            if (completedCommand) {
+                runningOperations.delete(completedCommand.id);
+                console.log(`${completedCommand.label} is available again.`);
             }
-        );
+        },
+    );
 
-        if (completedCommand) {
-             runningOperations.delete(completedCommand.id);
-            console.log(`${completedCommand.label} is available again.`);
-        }
-	  });
+    context.subscriptions.push(endListener);
 
-	context.subscriptions.push(endListener);
+    const closeListener = vscode.window.onDidCloseTerminal(
+        function (closedTerminal) {
+            for (const [commandId, terminal] of runningOperations.entries()) {
+                if (terminal === closedTerminal) {
+                    runningOperations.delete(commandId);
 
-	const closeListener = vscode.window.onDidCloseTerminal(function (closedTerminal) {
+                    console.log(`${commandId} terminal was closed. Operation released.`);
+                    break;
+                }
+            }
+        },
+    );
 
-        for (const [commandId, terminal] of runningOperations.entries()) {
+    context.subscriptions.push(closeListener);
 
-            if (terminal === closedTerminal) {
-
-                runningOperations.delete(commandId);
-
-                console.log(
-                    `${commandId} terminal was closed. Operation released.`
-                );
-              	  break;
-        	    }
-     	   }
-    	});
-
-	context.subscriptions.push(closeListener);
-	
-    const command = vscode.commands.registerCommand( // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
-        'salesforce-toolkit.open',
+    const command = vscode.commands.registerCommand(
+        // Register Command. This needs to match the command ID declared in package.json. Button -> Event -> Handler
+        "salesforce-toolkit.open",
         function () {
-			const commands = loadCommands(context);
-            const panel = vscode.window.createWebviewPanel(  // Create a webpage-like panel inside VS Code.
-                'salesforceToolkit',  // 'salesforceToolkit', is the internal ID
-                'Salesforce Toolkit',  // is the title shown on the tab.
-                vscode.ViewColumn.One, // 
+            const commands = loadCommands(context);
+            const panel = vscode.window.createWebviewPanel(
+                // Create a webpage-like panel inside VS Code.
+                "salesforceToolkit", // 'salesforceToolkit', is the internal ID
+                "Salesforce Toolkit", // is the title shown on the tab.
+                vscode.ViewColumn.One, //
                 {
-                    enableScripts: true
-                }  // Allow JavaScript inside our webview. VS Code webviews have scripting disabled by default, so we explicitly enable it because our UI will eventually need JavaScript to respond to radio buttons and the Execute button.
+                    enableScripts: true,
+                }, // Allow JavaScript inside our webview. VS Code webviews have scripting disabled by default, so we explicitly enable it because our UI will eventually need JavaScript to respond to radio buttons and the Execute button.
             );
 
             panel.webview.html = getWebviewContent(commands); // Here's the HTML that I want you to display. Build my UI using these commands.
-            
-            panel.webview.onDidReceiveMessage(function (message) { // created the complete communication path: DP10 Radio + Execute) ➔ Webview JS (postMessage()) ➔ VS Code Host (onDidReceiveMessage()) ➔ extension.js (Executes code)
-                if (message.type === 'execute') {  // Only process messages whose purpose is execute.
-                    console.log('Selected command:', message.commandId);
 
-                    const selectedCommand = commands.find(
-                        function (command) {
-                            return command.id === message.commandId;
-                        }
-                    );
+            panel.webview.onDidReceiveMessage(function (message) {
+                // created the complete communication path: DP10 Radio + Execute) ➔ Webview JS (postMessage()) ➔ VS Code Host (onDidReceiveMessage()) ➔ extension.js (Executes code)
+                if (message.type === "execute") {
+                    // Only process messages whose purpose is execute.
+                    console.log("Selected command:", message.commandId);
+
+                    const selectedCommand = commands.find(function (command) {
+                        return command.id === message.commandId;
+                    });
 
                     if (!selectedCommand) {
-                        vscode.window.showErrorMessage('Command not found.');
+                        vscode.window.showErrorMessage("Command not found.");
                         return;
                     }
 
                     const scriptPath = path.join(
                         context.extensionPath,
-                        selectedCommand.script
+                        selectedCommand.script,
                     );
 
-                    console.log('Script selected:',scriptPath);
+                    console.log("Script selected:", scriptPath);
 
-					if (runningOperations.has(selectedCommand.id)) {
-						 vscode.window.showErrorMessage(`${selectedCommand.label} is already running.`);
- 						 return;
-					}
+                    if (runningOperations.has(selectedCommand.id)) {
+                        vscode.window.showErrorMessage(
+                            `${selectedCommand.label} is already running.`,
+                        );
+                        return;
+                    }
 
-                    const terminal = vscode.window.createTerminal({  // Create a new integrated terminal.
+                    const terminal = vscode.window.createTerminal({
+                        // Create a new integrated terminal.
                         name: `Salesforce Toolkit - ${selectedCommand.label}`,
-                        cwd: context.extensionPath     // Start the terminal in our extension's root directory. ex scripts/dp10.ps1
+                        cwd: context.extensionPath, // Start the terminal in our extension's root directory. ex scripts/dp10.ps1
                     });
 
-                    runningOperations.set(selectedCommand.id,terminal);  // map to recognize which is running 
-                    terminal.show();   // terminal visible to user
+                    runningOperations.set(selectedCommand.id, terminal); // map to recognize which is running
+                    terminal.show(); // terminal visible to user
 
-					
-                    terminal.sendText(`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`);  //powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\...\scripts\dp10.ps1"
-               }
+                    terminal.sendText(
+                        `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`,
+                    ); //powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\...\scripts\dp10.ps1"
+                }
             });
-        }
+        },
     );
 
     context.subscriptions.push(command);
 }
 
 function loadCommands(context) {
-
     const configPath = path.join(
-        context.extensionPath,  // Where is my extension installed? - During development, it points to your extension project. Later, when you package it: and someone installs it, it points to the installed extension location.
-        '.salesforce-toolkit',
-        'commands.json'
+        context.extensionPath, // Where is my extension installed? - During development, it points to your extension project. Later, when you package it: and someone installs it, it points to the installed extension location.
+        ".salesforce-toolkit",
+        "commands.json",
     );
 
-    const fileContent = fs.readFileSync(  // Read the file and give me its contents as text. JavaScript initially receives it as text.
+    const fileContent = fs.readFileSync(
+        // Read the file and give me its contents as text. JavaScript initially receives it as text.
         configPath,
-        'utf8'
+        "utf8",
     );
 
     const config = JSON.parse(fileContent);
@@ -125,7 +130,6 @@ function loadCommands(context) {
 }
 
 function getWebviewContent(commands) {
-
     return `
         <!DOCTYPE html>
 
@@ -166,6 +170,26 @@ function getWebviewContent(commands) {
                 commandList.appendChild(label);
             });
 
+			function updateInputVisibility() {
+
+            const selectedRadio =document.querySelector( 'input[name="command"]:checked' );
+        
+            const selectedCommand = commands.find(function(command) { return command.id === selectedRadio.value; });
+        
+            const shouldShowInput = selectedCommand.requiresInput;
+        
+            inputArea.style.display = shouldShowInput ? 'block' : 'none'; 
+            
+            }
+
+            commandList.addEventListener( 'change',
+                function() { 
+                     updateInputVisibility();
+                 }
+            );
+
+        updateInputVisibility();
+
             document
                 .getElementById('executeButton') // Find the HTML element whose ID is executeButton
                 .addEventListener('click', function () {   // When someone clicks this element, run this function.
@@ -186,9 +210,9 @@ function getWebviewContent(commands) {
     `;
 }
 
-function deactivate() {}
+function deactivate() { }
 
 module.exports = {
     activate,
-    deactivate
+    deactivate,
 };
